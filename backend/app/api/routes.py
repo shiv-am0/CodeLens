@@ -1,21 +1,16 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db, async_session_factory
-from app.core.security import get_current_user
-from app.models.user import User
 from app.models.repository import RepositoryAnalysis, ChatHistory, Repository
 from app.schemas.repository import (
     RepositoryCreate, RepositoryResponse, RepositoryFileResponse,
     RepositoryAnalysisResponse, ChatRequest, ChatResponse, ChatHistoryResponse,
 )
-from app.schemas.user import UserCreate, UserResponse, TokenResponse
 from app.services.repository_service import RepositoryService
 from app.services.analysis_service import AnalysisService
 from app.services.embedding_service import EmbeddingService
 from app.services.openai_service import OpenAIService
-from app.core.security import hash_password, verify_password, create_access_token
 from loguru import logger
 
 from sqlalchemy import select
@@ -24,35 +19,11 @@ router = APIRouter()
 openai_service = OpenAIService()
 
 
-@router.post("/auth/register", response_model=TokenResponse)
-async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(email=data.email, password_hash=hash_password(data.password))
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    token = create_access_token({"sub": user.email})
-    return TokenResponse(access_token=token)
-
-
-@router.post("/auth/login", response_model=TokenResponse)
-async def login(data: UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": user.email})
-    return TokenResponse(access_token=token)
-
-
 @router.post("/repositories/analyze", response_model=RepositoryResponse)
 async def analyze_repository(
     data: RepositoryCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
 ):
     repo_service = RepositoryService(db)
 
@@ -102,7 +73,6 @@ async def analyze_repository(
     try:
         repo = await repo_service.create_repository(
             data.github_url,
-            user_id=current_user.id if current_user else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

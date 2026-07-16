@@ -18,21 +18,19 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 15, React 19, TypeScript, TailwindCSS, Framer Motion |
-| Backend | FastAPI, Python 3.12, SQLAlchemy, Alembic |
+| Backend | FastAPI, Python 3.12, SQLAlchemy |
 | Database | PostgreSQL + pgvector |
-| AI | OpenAI Responses API, GPT-5.5, text-embedding-3-small |
-| Background | Celery + Redis |
-| Auth | JWT (python-jose) |
-| Deployment | Docker, Docker Compose, Nginx |
+| AI | OpenAI Responses API (GPT-5.5, text-embedding-3-small) or Ollama (local LLMs) |
+| Orchestration | Docker Compose, Nginx |
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- OpenAI API Key
+- OpenAI API Key (or Ollama for local inference)
 
-### Setup
+### With OpenAI (recommended)
 
 1. Clone the repository:
    ```bash
@@ -56,6 +54,59 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
    ```
 
 5. Open http://localhost:80 in your browser.
+
+### With Ollama (local, free)
+
+Ollama runs a local LLM on your machine — no API key needed, no API costs.
+
+1. Ensure you have enough RAM (8GB+ recommended). The default models (`llama3.1:8b` + `nomic-embed-text`) require ~6GB.
+
+2. Configure `.env` for Ollama:
+   ```
+   LLM_PROVIDER=ollama
+   OLLAMA_CHAT_MODEL=llama3.1:8b
+   OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+   # No OPENAI_API_KEY needed
+   ```
+
+3. Start with Docker Compose:
+   ```bash
+   docker compose up -d
+   ```
+
+   The Ollama container will automatically pull the configured models on first start (may take a few minutes).
+
+4. Open http://localhost:80 in your browser.
+
+### Switch Between Providers
+
+Change the `LLM_PROVIDER` value in `.env`:
+
+| Provider | `LLM_PROVIDER` | Key Requirement |
+|----------|---------------|-----------------|
+| OpenAI | `openai` | `OPENAI_API_KEY` required |
+| Ollama | `ollama` | No key needed |
+
+After changing, restart the backend:
+```bash
+docker compose restart backend
+```
+
+### Remove Ollama Locally (if using OpenAI only)
+
+If you're using OpenAI and want to free up disk space:
+
+```bash
+# Stop all containers and remove Ollama data
+docker compose down
+docker rmi ollama/ollama:latest
+docker volume rm codelens_ollama_data
+
+# Restart without Ollama
+docker compose up -d
+```
+
+The Ollama service configuration remains in `docker-compose.yml` for future use — it simply won't run unless you set `LLM_PROVIDER=ollama`.
 
 ### Development
 
@@ -88,29 +139,31 @@ npm run dev
                     │    Nginx    │
                     └──────┬──────┘
                            │
+                    ┌──────▼──────┐
+                    │   FastAPI   │
+                    │   Backend   │
+                    └──────┬──────┘
+                           │
               ┌────────────┼────────────┐
               │            │            │
-       ┌──────▼──────┐ ┌──▼───┐ ┌─────▼──────┐
-       │   FastAPI   │ │Redis │ │  Frontend  │
-       │   Backend   │ │      │ │ Next.js 15 │
-       └──────┬──────┘ └──────┘ └────────────┘
-              │
-    ┌─────────┼─────────┐
-    │         │         │
-┌───▼───┐ ┌──▼──┐ ┌────▼────┐
-│Postgre│ │Celery│ │  OpenAI │
-│ + vec │ │Worker│ │   API   │
-└───────┘ └─────┘ └─────────┘
+        ┌─────▼────┐ ┌────▼────┐ ┌─────▼─────┐
+        │PostgreSQL│ │ OpenAI  │ │  Frontend  │
+        │ + pgvec  │ │  API    │ │ Next.js 15 │
+        └──────────┘ └─────────┘ └───────────┘
+                           │ (or Ollama)
+                    ┌──────▼──────┐
+                    │   Ollama    │
+                    │ (optional)  │
+                    └─────────────┘
 ```
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login |
 | POST | `/api/repositories/analyze` | Submit repository for analysis |
 | GET | `/api/repositories/{id}` | Get repository status |
+| GET | `/api/repositories/{id}/analysis` | Get full analysis data |
 | GET | `/api/repositories/{id}/overview` | Get project overview |
 | GET | `/api/repositories/{id}/architecture` | Get architecture explanation |
 | GET | `/api/repositories/{id}/folders` | Get folder explorer |
@@ -130,12 +183,11 @@ codelens/
 ├── backend/
 │   ├── app/
 │   │   ├── api/           # API routes
-│   │   ├── core/          # Config, database, security
+│   │   ├── core/          # Config, database
 │   │   ├── models/        # SQLAlchemy models
 │   │   ├── schemas/       # Pydantic schemas
 │   │   ├── services/      # Business logic
 │   │   ├── prompts/       # AI prompts
-│   │   ├── workers/       # Celery tasks
 │   │   └── utils/         # Utilities
 │   ├── database/          # Alembic migrations
 │   ├── tests/             # Pytest tests
@@ -144,7 +196,6 @@ codelens/
 │   ├── src/
 │   │   ├── app/           # Next.js pages
 │   │   ├── components/    # React components
-│   │   ├── hooks/         # React hooks
 │   │   ├── services/      # API client
 │   │   ├── types/         # TypeScript types
 │   │   └── lib/           # Utilities
@@ -156,13 +207,16 @@ codelens/
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | For OpenAI | — | OpenAI API key |
+| `LLM_PROVIDER` | No | `openai` | `openai` or `ollama` |
+| `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | OpenAI chat model |
+| `OPENAI_EMBEDDING_MODEL` | No | `text-embedding-3-small` | OpenAI embedding model |
+| `OLLAMA_CHAT_MODEL` | No | `llama3.1:8b` | Ollama chat model |
+| `OLLAMA_EMBEDDING_MODEL` | No | `nomic-embed-text` | Ollama embedding model |
 | `DATABASE_URL` | No | PostgreSQL connection string |
-| `REDIS_URL` | No | Redis connection string |
-| `JWT_SECRET` | No | JWT signing secret |
-| `GITHUB_TOKEN` | No | GitHub token (avoids rate limits) |
+| `GITHUB_TOKEN` | No | — | GitHub token (avoids rate limits) |
 
 ## Testing
 
@@ -179,4 +233,3 @@ pytest tests/ -v
 - Maximum files indexed: 3000
 - Private repositories are rejected
 - Binary files are automatically ignored
-- JWT authentication for API access

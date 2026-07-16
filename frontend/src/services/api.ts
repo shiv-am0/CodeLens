@@ -12,10 +12,8 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
@@ -33,19 +31,6 @@ async function request<T>(
 }
 
 export const api = {
-  auth: {
-    register: (email: string, password: string) =>
-      request<{ access_token: string }>("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      }),
-    login: (email: string, password: string) =>
-      request<{ access_token: string }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      }),
-  },
-
   repositories: {
     analyze: (github_url: string) =>
       request<import("@/types").Repository>("/repositories/analyze", {

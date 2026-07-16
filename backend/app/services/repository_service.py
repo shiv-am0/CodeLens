@@ -49,7 +49,7 @@ class RepositoryService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_repository(self, github_url: str, user_id: Optional[int] = None) -> Repository:
+    async def create_repository(self, github_url: str) -> Repository:
         owner, repo_name = self._parse_github_url(github_url)
 
         branch = "main"
@@ -62,7 +62,6 @@ class RepositoryService:
             logger.warning(f"Could not detect default branch for {owner}/{repo_name}, defaulting to main")
 
         repo = Repository(
-            user_id=user_id,
             github_url=github_url,
             owner=owner,
             repo_name=repo_name,

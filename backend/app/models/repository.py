@@ -8,7 +8,6 @@ class Repository(Base):
     __tablename__ = "repositories"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     github_url: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True, index=True)
     owner: Mapped[str] = mapped_column(String(255), nullable=False)
     repo_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -17,7 +16,6 @@ class Repository(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User", back_populates="repositories")
     files = relationship("RepositoryFile", back_populates="repository", cascade="all, delete-orphan")
     analysis = relationship("RepositoryAnalysis", back_populates="repository", uselist=False, cascade="all, delete-orphan")
     chat_messages = relationship("ChatHistory", back_populates="repository", cascade="all, delete-orphan")

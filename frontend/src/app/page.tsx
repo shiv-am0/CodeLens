@@ -93,9 +93,8 @@ export default function LandingPage() {
 
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-surface-400 hover:text-surface-100 transition-colors text-sm">Features</a>
-            <a href="/login" className="text-surface-400 hover:text-surface-100 transition-colors text-sm">Sign In</a>
             <a
-              href="https://github.com"
+              href="https://github.com/shiv-am0/CodeLens"
               target="_blank"
               rel="noopener noreferrer"
               className="text-surface-400 hover:text-surface-100 transition-colors"
