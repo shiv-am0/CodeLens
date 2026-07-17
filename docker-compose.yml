@@ -35,7 +35,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/codelens"
+      DATABASE_URL: "postgresql+psycopg://postgres:postgres@postgres:5432/codelens"
       DATABASE_URL_SYNC: "postgresql://postgres:postgres@postgres:5432/codelens"
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     app_name: str = "CodeLens"
     debug: bool = False
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/codelens"
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/codelens"
     database_url_sync: str = "postgresql://postgres:postgres@localhost:5432/codelens"
     llm_provider: str = "openai"
 

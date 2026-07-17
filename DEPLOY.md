@@ -57,7 +57,7 @@ For the app, add `?pgbouncer=true&connection_limit=1` to the async connection st
 
 Example:
 ```
-DATABASE_URL=postgresql+asyncpg://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+DATABASE_URL=postgresql+psycopg://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
 DATABASE_URL_SYNC=postgresql://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
 ```
 
@@ -204,7 +204,7 @@ No redeployment needed:
 ## Troubleshooting
 
 ### Backend fails to start
-- Check `DATABASE_URL` is correct — should start with `postgresql+asyncpg://`
+- Check `DATABASE_URL` is correct — should start with `postgresql+psycopg://` (or `postgresql+asyncpg://` — the code converts automatically)
 - Verify `ENCRYPTION_KEY` is set correctly (copy it exactly)
 - Check Render logs for Python dependency errors
 

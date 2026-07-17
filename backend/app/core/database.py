@@ -2,12 +2,13 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql.asyncpg import PGDialect_asyncpg
 from app.core.config import settings
 
 
 def _sanitize_db_url(url: str) -> str:
-    """Remove query params that asyncpg doesn't understand (e.g. pgbouncer)."""
+    """Convert URL to psycopg format and strip unsupported params for PgBouncer."""
+    # Convert asyncpg prefix to psycopg if needed
+    url = url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
     for key in ("pgbouncer", "connection_limit"):
@@ -16,15 +17,12 @@ def _sanitize_db_url(url: str) -> str:
     return urlunparse(parsed._replace(query=new_query))
 
 
-dialect = PGDialect_asyncpg(prepared_statement_cache_size=0)
-
 engine = create_async_engine(
     _sanitize_db_url(settings.database_url),
     echo=settings.debug,
     pool_size=20,
     max_overflow=10,
-    connect_args={"statement_cache_size": 0},
-    dialect=dialect,
+    pool_pre_ping=True,
 )
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
