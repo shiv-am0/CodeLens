@@ -1,7 +1,7 @@
 services:
   - type: web
     name: codelens-backend
-    runtime: python-3.12
+    runtime: python
     repo: https://github.com/shiv-am0/CodeLens
     branch: main
     buildCommand: pip install -r backend/requirements.txt
