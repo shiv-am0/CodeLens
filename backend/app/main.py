@@ -27,7 +27,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_origins = settings.allowed_origins.split(",") if settings.allowed_origins else [
+cors_origins = [
+    o.strip().rstrip("/") 
+    for o in settings.allowed_origins.split(",")
+] if settings.allowed_origins else [
     "http://localhost:3000",
     "http://localhost",
     "http://127.0.0.1:3000",
