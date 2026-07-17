@@ -1,6 +1,6 @@
 # CodeLens Deployment Guide
 
-Deploy the entire CodeLens stack for **free** using Vercel (frontend), Render (backend + database).
+Deploy the entire CodeLens stack for **free** using Vercel (frontend), Render (backend), and Supabase (database).
 
 ---
 
@@ -8,12 +8,13 @@ Deploy the entire CodeLens stack for **free** using Vercel (frontend), Render (b
 
 - [GitHub account](https://github.com)
 - [OpenAI API key](https://platform.openai.com/api-keys)
+- [Supabase account](https://supabase.com) (free)
 - [Render account](https://render.com) (free, no credit card required)
 - [Vercel account](https://vercel.com) (free, GitHub login)
 
 ---
 
-## Step 1: Generate Encryption Key
+## Step 1: Configure Environment Variables
 
 Generate an encryption key for storing API keys in the database:
 
@@ -21,50 +22,75 @@ Generate an encryption key for storing API keys in the database:
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Save this key — you'll need it for Render environment variables.
+Save this key — you'll need it for both Render and your local `.env` file.
 
 ---
 
-## Step 2: Create Render PostgreSQL Database
+## Step 2: Database — Supabase
+
+1. Go to [supabase.com](https://supabase.com) and sign in
+2. Click **New project**
+   - Name: `codelens`
+   - Database password: **save this securely**
+   - Region: choose the closest to you
+   - Pricing Plan: **Free**
+3. Wait for the database to provision (~2 minutes)
+4. Go to **Project Settings → Database → Connection string**
+5. Copy the connection string (it will look like `postgresql://postgres:xxxx@xxxx.pooler.supabase.com:6543/postgres`)
+
+### Enable pgvector
+
+1. Go to **SQL Editor** in the Supabase dashboard
+2. Run this SQL:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### Fix Connection Strings
+
+Supabase gives you two connection strings:
+- **Session pooler** (port 6543) — use this for the app
+- **Direct connection** (port 5432) — use this for migrations/one-off tasks
+
+For the app, add `?pgbouncer=true&connection_limit=1` to the async connection string:
+
+Example:
+```
+DATABASE_URL=postgresql+asyncpg://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+DATABASE_URL_SYNC=postgresql://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+```
+
+> **Note:** The `pgbouncer` and `connection_limit` params are stripped automatically by the backend before connecting — they're safe to include.
+
+---
+
+## Step 3: Backend — Render (Manual Web Service)
+
+> **Why manual?** Render Blueprints require a payment method to apply `render.yaml`. A manual Web Service works on the free tier without any payment info.
 
 1. Go to [render.com](https://render.com) and sign in
-2. Click **New + → PostgreSQL**
-3. Configure:
-   - **Name:** `codelens-db`
-   - **Database:** `codelens`
-   - **Plan:** **Free**
-4. Click **Create Database**
-5. Wait ~2 minutes for it to provision
-6. Once created, go to the database page → **Connection** tab
-7. Copy the **Internal Database URL** (it will look like `postgresql://user:password@hostname:5432/codelens`)
-
-> **Note:** Render's PostgreSQL includes pgvector support out of the box.
-
----
-
-## Step 3: Create Backend Web Service
-
-1. Click **New + → Web Service**
-2. Connect your GitHub repository (or paste the repo URL directly)
-3. Select the `CodeLens` repository
-4. Configure:
+2. Click **New + → Web Service**
+3. Connect your GitHub repository (or paste the repo URL directly)
+4. Select the `CodeLens` repository
+5. In the configuration form:
 
    | Setting | Value |
    |---|---|
    | **Name** | `codelens-backend` |
    | **Region** | Choose the closest to you |
    | **Branch** | `main` |
-   | **Runtime** | `Python 3` |
+   | **Runtime** | `Python 3` (auto-detected from `.python-version`) |
    | **Build Command** | `pip install -r backend/requirements.txt` |
    | **Start Command** | `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
    | **Plan** | **Free** |
 
-5. Click **Advanced** and add these environment variables:
+6. Click **Advanced** and add these environment variables:
 
    | Variable | Value |
    |---|---|
-   | `DATABASE_URL` | Paste the Internal Database URL from Step 2, change `postgresql://` to `postgresql+asyncpg://` |
-   | `DATABASE_URL_SYNC` | Paste the Internal Database URL from Step 2 (keep as-is) |
+   | `DATABASE_URL` | Your Supabase async connection string (see Step 2) |
+   | `DATABASE_URL_SYNC` | Your Supabase sync connection string (see Step 2) |
    | `ENCRYPTION_KEY` | The key generated in Step 1 |
    | `ADMIN_PASSWORD` | Choose a strong admin password |
    | `LLM_PROVIDER` | `openai` |
@@ -73,13 +99,9 @@ Save this key — you'll need it for Render environment variables.
    | `ALLOWED_ORIGINS` | *(Leave empty for now — set after Vercel deploy)* |
    | `GITHUB_TOKEN` | *(Optional)* Your GitHub personal access token |
 
-   > **Example DATABASE_URL:**
-   > If Render gives you `postgresql://abc123:xyz789@codelens-db.internal:5432/codelens`,
-   > then set `DATABASE_URL` to `postgresql+asyncpg://abc123:xyz789@codelens-db.internal:5432/codelens`
-
-6. Set **Health Check Path** to `/api/health`
-7. Click **Create Web Service**
-8. Render will deploy — this takes ~5 minutes. Watch the logs for any errors.
+7. Set **Health Check Path** to `/api/health`
+8. Click **Create Web Service**
+9. Render will deploy — this takes ~5 minutes. Watch the logs for any errors.
 
 > **Important:** Free-tier Render services spin down after **15 minutes** of inactivity. First request after idle takes ~30 seconds to wake up.
 
@@ -138,7 +160,9 @@ Visit `https://codelens-frontend.vercel.app` — you should see the CodeLens lan
 
 ## Step 6: Keep-Alive (Prevent Spin-Down)
 
-Render free tier spins down after **15 minutes** of inactivity. Use [cron-job.org](https://cron-job.org) (free, no account):
+### Render — Backend Keep-Alive
+
+Render's free tier spins down after **15 minutes** of inactivity. Use [cron-job.org](https://cron-job.org) (free, no account):
 
 1. Go to [cron-job.org](https://cron-job.org)
 2. Click **Create Cronjob**
@@ -146,7 +170,23 @@ Render free tier spins down after **15 minutes** of inactivity. Use [cron-job.or
 4. Interval: **Every 14 minutes**
 5. Save
 
-> **Note:** Render PostgreSQL pauses after **90 days** of no requests. The backend health check cron keeps both the backend AND database alive.
+### Supabase — Database Keep-Alive
+
+Supabase pauses after **7 days** of no database requests. Create a GitHub Actions cron:
+
+In your repo, create `.github/workflows/keepalive.yml`:
+
+```yaml
+name: Keep Supabase Alive
+on:
+  schedule:
+    - cron: "0 0 */3 * *"
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s "https://codelens-backend.onrender.com/api/health"
+```
 
 ---
 
@@ -164,7 +204,7 @@ No redeployment needed:
 ## Troubleshooting
 
 ### Backend fails to start
-- Verify `DATABASE_URL` is correct — should start with `postgresql+asyncpg://` (not `postgresql://`)
+- Check `DATABASE_URL` is correct — should start with `postgresql+asyncpg://`
 - Verify `ENCRYPTION_KEY` is set correctly (copy it exactly)
 - Check Render logs for Python dependency errors
 
@@ -182,16 +222,20 @@ No redeployment needed:
 - Verify the key is **active** (toggle if needed)
 - Wait up to 5 minutes for the cache to refresh
 
+### Vector search not working
+- Run `CREATE EXTENSION IF NOT EXISTS vector;` in Supabase SQL Editor
+- Verify the embeddings dimension matches (1536 for `text-embedding-3-small`)
+
 ---
 
 ## Architecture Diagram
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Vercel     │────▶│   Render         │────▶│  Render          │
-│  (Next.js)  │     │  (FastAPI)       │     │  (PostgreSQL)    │
-│             │     │                  │     │    + pgvector     │
-└─────────────┘     └──────────────────┘     └──────────────────┘
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Vercel     │────▶│   Render     │────▶│  Supabase    │
+│  (Next.js)  │     │  (FastAPI)   │     │ (PostgreSQL) │
+│             │     │              │     │   + pgvector │
+└─────────────┘     └──────────────┘     └──────────────┘
                            │
                     ┌──────┴──────┐
                     │  Admin UI   │
@@ -208,6 +252,7 @@ No redeployment needed:
 |---|---|---|
 | Vercel | Hobby | $0 |
 | Render | Free | $0 |
+| Supabase | Free | $0 |
 | cron-job.org | Free | $0 |
 | OpenAI | Pay-as-you-go | ~$0.50–2/month for light usage |
 | **Total** | | **$0** (plus OpenAI usage) |
