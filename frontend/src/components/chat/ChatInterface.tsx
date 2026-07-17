@@ -91,7 +91,7 @@ export default function ChatInterface({ repoId }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto space-y-4 p-4">
         {messages.map((msg, i) => (
           <div

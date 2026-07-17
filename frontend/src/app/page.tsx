@@ -15,12 +15,13 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 const features = [
   {
     icon: Code2,
     title: "AI-Powered Analysis",
-    description: "GPT-5.5 analyzes your entire codebase and generates comprehensive documentation.",
+    description: "AI analyzes your entire codebase and generates comprehensive documentation.",
   },
   {
     icon: LayoutDashboard,
@@ -239,6 +240,23 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {loading && (
+        <div className="fixed inset-0 z-50 bg-surface-950/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <Loader2 className="w-12 h-12 text-accent animate-spin mx-auto mb-6" />
+            <h3 className="text-xl font-semibold text-surface-100 mb-3">
+              Analyzing Repository
+            </h3>
+            <p className="text-surface-400 text-sm break-all bg-surface-900/50 rounded-lg px-4 py-2 border border-surface-800">
+              {repoUrl}
+            </p>
+            <p className="text-surface-500 text-sm mt-4">
+              Cloning, indexing, and running AI analysis...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
 
 ## Features
 
-- **AI-Powered Analysis** — GPT-5.5 analyzes your entire codebase and generates comprehensive documentation
+- **AI-Powered Analysis** — AI analyzes your entire codebase and generates comprehensive documentation
 - **Smart Dashboard** — Architecture, API docs, database schemas, and more in one place
 - **Folder Intelligence** — Every folder explained with purpose, responsibilities, and relationships
 - **Mermaid Diagrams** — Auto-generated architecture and sequence diagrams
@@ -20,7 +20,7 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
 | Frontend | Next.js 15, React 19, TypeScript, TailwindCSS, Framer Motion |
 | Backend | FastAPI, Python 3.12, SQLAlchemy |
 | Database | PostgreSQL + pgvector |
-| AI | OpenAI Responses API (GPT-5.5, text-embedding-3-small) or Ollama (local LLMs) |
+| AI | OpenAI Responses API (gpt-4o-mini, text-embedding-3-small) or Ollama (local LLMs) |
 | Orchestration | Docker Compose, Nginx |
 
 ## Quick Start

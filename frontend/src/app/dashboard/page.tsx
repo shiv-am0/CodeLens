@@ -162,9 +162,11 @@ function DashboardContent() {
         );
       case "diagram":
         return (
-          <div>
+          <div className="h-[calc(100vh-12rem)]">
             <h2 className="text-2xl font-bold text-surface-100 mb-6">Architecture Diagram</h2>
-            <MermaidDiagram chart={analysis?.mermaid_diagram || ""} />
+            <div className="h-[calc(100%-3rem)]">
+              <MermaidDiagram chart={analysis?.mermaid_diagram || ""} />
+            </div>
           </div>
         );
       case "readme":
@@ -233,7 +235,7 @@ function DashboardContent() {
             </div>
           </div>
         )}
-        <div className="p-6">
+        <div className={section === "chat" ? "" : "p-6"}>
           {renderContent()}
         </div>
       </main>

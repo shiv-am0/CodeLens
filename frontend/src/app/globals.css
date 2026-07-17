@@ -96,9 +96,6 @@
     @apply text-accent bg-accent/10 border border-accent/20;
   }
 
-  .mermaid-container svg {
-    @apply max-w-full h-auto;
-  }
 }
 
 @layer utilities {
