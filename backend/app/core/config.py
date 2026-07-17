@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_dim: int = 768
 
+    allowed_origins: str = ""
     admin_password: str = "admin"
     encryption_key: str = ""
     github_token: Optional[str] = None
