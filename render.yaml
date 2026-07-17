@@ -28,3 +28,8 @@ services:
       - key: GITHUB_TOKEN
         sync: false
     healthCheckPath: /api/health
+
+  - type: pgsql
+    name: codelens-db
+    plan: free
+    databaseName: codelens
