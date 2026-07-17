@@ -20,9 +20,8 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_dim: int = 768
 
-    jwt_secret: str = "change-me-in-production"
-    jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 1440
+    admin_password: str = "admin"
+    encryption_key: str = ""
     github_token: Optional[str] = None
 
     max_repo_size_mb: int = 100
@@ -32,6 +31,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 settings = Settings()

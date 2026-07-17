@@ -4,14 +4,18 @@ from openai import AsyncOpenAI
 from loguru import logger
 
 from app.core.config import settings
+from app.services.key_manager import key_manager
 
 
 class OpenAIService:
     def __init__(self):
         self.provider = settings.llm_provider
+        self.model = settings.openai_chat_model
+        self.embedding_model = settings.openai_embedding_model
+        self.embedding_dim = settings.openai_embedding_dim
 
         if self.provider == "ollama":
-            self.client = AsyncOpenAI(
+            self._ollama_client = AsyncOpenAI(
                 base_url=settings.ollama_base_url,
                 api_key="ollama",
             )
@@ -19,16 +23,19 @@ class OpenAIService:
             self.embedding_model = settings.ollama_embedding_model
             self.embedding_dim = settings.ollama_embedding_dim
         else:
-            self.client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
-            self.model = settings.openai_chat_model
-            self.embedding_model = settings.openai_embedding_model
-            self.embedding_dim = settings.openai_embedding_dim
+            self._ollama_client = None
+
+    async def _get_client(self) -> AsyncOpenAI | None:
+        if self.provider == "ollama":
+            return self._ollama_client
+        return await key_manager.get_client()
 
     async def generate_completion(self, system_prompt: str, user_prompt: str, max_tokens: int = 4096) -> str:
-        if not self.client:
+        client = await self._get_client()
+        if not client:
             return f"{self.provider} not configured. Please set the appropriate API key or provider."
 
-        response = await self.client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -40,10 +47,11 @@ class OpenAIService:
         return response.choices[0].message.content or ""
 
     async def generate_structured(self, system_prompt: str, user_prompt: str, response_format: dict) -> dict:
-        if not self.client:
+        client = await self._get_client()
+        if not client:
             return {"error": f"{self.provider} not configured. Please set the appropriate API key or provider."}
 
-        response = await self.client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -60,20 +68,22 @@ class OpenAIService:
             return {"raw": content}
 
     async def generate_embedding(self, text: str) -> List[float]:
-        if not self.client:
+        client = await self._get_client()
+        if not client:
             return [0.0] * self.embedding_dim
 
-        response = await self.client.embeddings.create(
+        response = await client.embeddings.create(
             model=self.embedding_model,
             input=text,
         )
         return response.data[0].embedding
 
     async def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
-        if not self.client:
+        client = await self._get_client()
+        if not client:
             return [[0.0] * self.embedding_dim for _ in texts]
 
-        response = await self.client.embeddings.create(
+        response = await client.embeddings.create(
             model=self.embedding_model,
             input=texts,
         )
@@ -81,7 +91,8 @@ class OpenAIService:
         return [item.embedding for item in sorted_data]
 
     async def chat_with_context(self, question: str, context: str, repo_name: str, chat_history: List[dict] = None) -> str:
-        if not self.client:
+        client = await self._get_client()
+        if not client:
             return f"{self.provider} not configured. Please set the appropriate API key or provider."
 
         messages = [
@@ -105,7 +116,7 @@ class OpenAIService:
 
         messages.append({"role": "user", "content": question})
 
-        response = await self.client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=self.model,
             messages=messages,
             max_tokens=4096,

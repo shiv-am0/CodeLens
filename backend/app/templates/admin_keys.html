@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeLens Admin - API Keys</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #f1f3f9; padding: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 24px; }
+        .card { background: #1a1d2e; border: 1px solid #2a2f45; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #2a2f45; font-size: 14px; }
+        th { color: #9ca8c8; font-weight: 500; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+        .badge-active { background: rgba(16,185,129,0.15); color: #10b981; }
+        .badge-inactive { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .btn { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block; border: none; }
+        .btn-danger { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .btn-warning { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        .btn-primary { background: #6366f1; color: white; padding: 10px 20px; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 14px; color: #9ca8c8; margin-bottom: 6px; }
+        input { width: 100%; padding: 10px 14px; background: #0f1117; border: 1px solid #2a2f45; border-radius: 10px; color: #f1f3f9; font-size: 14px; outline: none; }
+        input:focus { border-color: #6366f1; }
+        .flex { display: flex; gap: 12px; }
+        .flex-1 { flex: 1; }
+        .mt-4 { margin-top: 16px; }
+        .empty { text-align: center; padding: 40px; color: #606e92; font-size: 14px; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .logout { color: #606e92; font-size: 14px; text-decoration: none; }
+        .logout:hover { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-bar">
+            <h1>API Keys Management</h1>
+            <a href="/admin/login" class="logout">Logout</a>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size: 18px; margin-bottom: 16px;">Add New Key</h2>
+            <form method="post" action="/admin/keys/add">
+                <div class="flex">
+                    <div class="flex-1">
+                        <label>Name</label>
+                        <input type="text" name="name" placeholder="e.g. My OpenAI Key" required>
+                    </div>
+                    <div class="flex-1">
+                        <label>API Key</label>
+                        <input type="password" name="key" placeholder="sk-..." required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-4">Add Key</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Key Prefix</th>
+                        <th>Status</th>
+                        <th>Used</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if keys %}
+                    {% for key in keys %}
+                    <tr>
+                        <td>{{ key.name }}</td>
+                        <td style="font-family: monospace;">{{ key.key_prefix }}...</td>
+                        <td>
+                            {% if key.is_active %}
+                            <span class="badge badge-active">Active</span>
+                            {% else %}
+                            <span class="badge badge-inactive">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ key.usage_count }}</td>
+                        <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <form method="post" action="/admin/keys/{{ key.id }}/toggle" style="display: inline;">
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    {{ 'Disable' if key.is_active else 'Enable' }}
+                                </button>
+                            </form>
+                            <form method="post" action="/admin/keys/{{ key.id }}/delete" style="display: inline;" onsubmit="return confirm('Delete this key?')">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="empty">No API keys configured. Add one above.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
