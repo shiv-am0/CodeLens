@@ -213,7 +213,7 @@ function DashboardContent() {
   return (
     <div className="flex h-screen">
       <Sidebar repoId={repoId} />
-      <main className="flex-1 overflow-y-auto">
+      <main className={`flex-1 ${section === "chat" ? "overflow-hidden" : "overflow-y-auto"}`}>
         {section !== "chat" && repo?.status === "completed" && (
           <div className="p-6 border-b border-surface-800/50">
             <div className="flex items-start justify-between">
@@ -235,7 +235,7 @@ function DashboardContent() {
             </div>
           </div>
         )}
-        <div className={section === "chat" ? "" : "p-6"}>
+        <div className={section === "chat" ? "h-full" : "p-6"}>
           {renderContent()}
         </div>
       </main>

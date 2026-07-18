@@ -54,12 +54,9 @@ class RepositoryService:
 
         branch = "main"
         language = None
-        try:
-            repo_info = await check_repo_exists(owner, repo_name)
-            branch = repo_info.get("default_branch", "main")
-            language = repo_info.get("language")
-        except Exception:
-            logger.warning(f"Could not detect default branch for {owner}/{repo_name}, defaulting to main")
+        repo_info = await check_repo_exists(owner, repo_name)
+        branch = repo_info.get("default_branch", "main")
+        language = repo_info.get("language")
 
         repo = Repository(
             github_url=github_url,
