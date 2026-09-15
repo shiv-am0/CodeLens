@@ -6,6 +6,7 @@ import json
 
 from app.models.repository import RepositoryFile
 from app.services.openai_service import OpenAIService
+from app.services.ai_configuration import AIConfigurationRequiredError
 
 
 class EmbeddingService:
@@ -56,6 +57,8 @@ class EmbeddingService:
                     """)
                     await self.db.execute(stmt, {"embedding": embedding_json, "file_id": file.id})
                     total_chunks += 1
+                except AIConfigurationRequiredError:
+                    raise
                 except Exception as e:
                     logger.error(f"Embedding failed for {file.path}: {e}")
 

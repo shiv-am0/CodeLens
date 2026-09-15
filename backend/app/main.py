@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.core.config import settings
 from app.core.database import init_db
 from app.api.routes import router
 from app.api.admin_routes import router as admin_router
+from app.api.settings_routes import router as settings_router
+from app.services.ai_configuration import AIConfigurationRequiredError
 from app.services.key_manager import key_manager
 
 
@@ -14,8 +17,8 @@ from app.services.key_manager import key_manager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name}")
     await init_db()
+    key_manager.initialize()
     if settings.encryption_key:
-        key_manager.init_encryption(settings.encryption_key, settings.openai_api_key)
         logger.info("Key manager initialized")
     yield
     logger.info("Shutting down")
@@ -46,7 +49,15 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 app.include_router(admin_router)
+
+
+@app.exception_handler(AIConfigurationRequiredError)
+async def ai_configuration_required_handler(
+    request: Request, exc: AIConfigurationRequiredError
+):
+    return JSONResponse(status_code=409, content={"detail": exc.as_detail()})
 
 
 @app.get("/api/health")

@@ -60,6 +60,7 @@ async def add_key(
     new_key = ApiKey(name=name, key_encrypted=encrypted, key_prefix=prefix)
     db.add(new_key)
     await db.commit()
+    key_manager.invalidate()
     return RedirectResponse(url="/admin/keys", status_code=303)
 
 
@@ -76,6 +77,7 @@ async def toggle_key(
         raise HTTPException(status_code=404, detail="Key not found")
     key.is_active = not key.is_active
     await db.commit()
+    key_manager.invalidate()
     return RedirectResponse(url="/admin/keys", status_code=303)
 
 
@@ -92,4 +94,5 @@ async def delete_key(
         raise HTTPException(status_code=404, detail="Key not found")
     await db.delete(key)
     await db.commit()
+    key_manager.invalidate()
     return RedirectResponse(url="/admin/keys", status_code=303)

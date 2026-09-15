@@ -46,11 +46,13 @@ services:
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      MASTER_KEY_PATH: "/var/lib/codelens/master.key"
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - backend_secrets:/var/lib/codelens
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,3 +103,4 @@ volumes:
   postgres_data:
   ollama_data:
   pgadmin_data:
+  backend_secrets:

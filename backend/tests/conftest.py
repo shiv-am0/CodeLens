@@ -9,7 +9,7 @@ from app.main import app
 from app.core.database import Base, get_db
 
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+TEST_DATABASE_URL = "sqlite+aiosqlite://"
 
 
 @pytest_asyncio.fixture(scope="function")

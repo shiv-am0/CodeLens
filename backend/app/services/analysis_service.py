@@ -6,6 +6,7 @@ from loguru import logger
 from app.models.repository import Repository, RepositoryFile, RepositoryAnalysis
 from app.services.openai_service import OpenAIService
 from app.services.embedding_service import EmbeddingService
+from app.services.ai_configuration import AIConfigurationRequiredError
 from app.prompts.analysis_prompts import (
     OVERVIEW_PROMPT, ARCHITECTURE_PROMPT, FOLDER_EXPLORER_PROMPT,
     API_DOCUMENTATION_PROMPT, DATABASE_ANALYSIS_PROMPT,
@@ -96,6 +97,8 @@ class AnalysisService:
         try:
             user_prompt = f"Repository: {repo_name}\n\nFiles:\n{project_summary}"
             return await self.openai.generate_completion(prompt_template, user_prompt, max_tokens=4096)
+        except AIConfigurationRequiredError:
+            raise
         except Exception as e:
             logger.error(f"Failed to generate section: {e}")
             return f"Analysis section could not be generated due to: {str(e)}"

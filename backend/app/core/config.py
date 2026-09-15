@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     allowed_origins: str = ""
     admin_password: str = "admin"
     encryption_key: str = ""
+    master_key_path: str = "./data/master.key"
     github_token: Optional[str] = None
 
     max_repo_size_mb: int = 100

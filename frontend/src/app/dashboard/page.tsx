@@ -7,7 +7,9 @@ import MermaidDiagram from "@/components/dashboard/MermaidDiagram";
 import ChatInterface from "@/components/chat/ChatInterface";
 import { api } from "@/services/api";
 import { getStatusColor } from "@/lib/utils";
-import { Clock, FileCode, GitBranch, Globe } from "lucide-react";
+import { GitBranch, Globe, Loader2, RefreshCw } from "lucide-react";
+import { useAIConfiguration } from "@/components/settings/AIConfigurationProvider";
+import { ApiError } from "@/services/api";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -17,7 +19,9 @@ function DashboardContent() {
   const [repo, setRepo] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [error, setError] = useState("");
+  const { ensureConfigured, openSettings } = useAIConfiguration();
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryCountRef = useRef(0);
@@ -67,6 +71,49 @@ function DashboardContent() {
       stopPolling();
     };
   }, [repoId]);
+
+  const runReanalysis = async () => {
+    setReanalyzing(true);
+    setError("");
+    try {
+      stopPolling();
+      const nextRepo = await api.repositories.reanalyze(Number(repoId));
+      setRepo(nextRepo);
+      setAnalysis({});
+      setLoading(true);
+      retryCountRef.current = 0;
+      intervalRef.current = setInterval(loadData, 5000);
+      await loadData();
+    } catch (caughtError) {
+      if (
+        caughtError instanceof ApiError &&
+        caughtError.code === "AI_CONFIGURATION_REQUIRED"
+      ) {
+        openSettings(runReanalysis);
+      } else {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Unable to reanalyze repository"
+        );
+      }
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
+  const handleReanalysis = async () => {
+    try {
+      const ready = await ensureConfigured(runReanalysis);
+      if (ready) await runReanalysis();
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to check AI configuration"
+      );
+    }
+  };
 
   const renderContent = () => {
     if (!repoId) {
@@ -232,6 +279,19 @@ function DashboardContent() {
                   </span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={handleReanalysis}
+                disabled={reanalyzing}
+                className="btn-secondary flex items-center gap-2 px-4 py-2 text-sm"
+              >
+                {reanalyzing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Reanalyze
+              </button>
             </div>
           </div>
         )}
