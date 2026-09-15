@@ -1,10 +1,16 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  details?: unknown;
+
+  constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -20,11 +26,29 @@ async function request<T>(
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new ApiError(error || `HTTP ${response.status}`, response.status);
+    const body = await response.text();
+    let message = body || `HTTP ${response.status}`;
+    let code: string | undefined;
+    let details: unknown;
+
+    try {
+      const parsed = JSON.parse(body);
+      details = parsed.detail;
+      if (typeof parsed.detail === "string") {
+        message = parsed.detail;
+      } else if (parsed.detail && typeof parsed.detail === "object") {
+        message = parsed.detail.message || message;
+        code = parsed.detail.code;
+      }
+    } catch {
+      // Keep the plain-text response as the error message.
+    }
+
+    throw new ApiError(message, response.status, code, details);
   }
 
   return response.json();
@@ -36,6 +60,10 @@ export const api = {
       request<import("@/types").Repository>("/repositories/analyze", {
         method: "POST",
         body: JSON.stringify({ github_url }),
+      }),
+    reanalyze: (id: number) =>
+      request<import("@/types").Repository>(`/repositories/${id}/reanalyze`, {
+        method: "POST",
       }),
     get: (id: number) =>
       request<import("@/types").Repository>(`/repositories/${id}`),
@@ -66,5 +94,13 @@ export const api = {
       }),
     getChatHistory: (id: number) =>
       request<import("@/types").ChatMessage[]>(`/repositories/${id}/chat-history`),
+  },
+  aiSettings: {
+    get: () => request<import("@/types").AIConfigurationStatus>("/settings/ai"),
+    update: (configuration: import("@/types").AIConfigurationUpdate) =>
+      request<import("@/types").AIConfigurationStatus>("/settings/ai", {
+        method: "PUT",
+        body: JSON.stringify(configuration),
+      }),
   },
 };

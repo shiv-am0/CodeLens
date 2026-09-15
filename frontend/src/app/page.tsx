@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import AISettingsButton from "@/components/settings/AISettingsButton";
+import { useAIConfiguration } from "@/components/settings/AIConfigurationProvider";
+import { ApiError, api } from "@/services/api";
 
 const features = [
   {
@@ -56,6 +59,24 @@ export default function LandingPage() {
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
   const router = useRouter();
+  const { ensureConfigured, openSettings } = useAIConfiguration();
+
+  const analyzeRepository = async (githubUrl: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const repo = await api.repositories.analyze(githubUrl);
+      router.push(`/dashboard?id=${repo.id}`);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "AI_CONFIGURATION_REQUIRED") {
+        setLoading(false);
+        openSettings(() => analyzeRepository(githubUrl));
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Failed to analyze repository");
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,16 +88,19 @@ export default function LandingPage() {
       setError("Please enter a valid GitHub URL");
       return;
     }
-    setLoading(true);
     setError("");
 
     try {
-      const { api } = await import("@/services/api");
-      const repo = await api.repositories.analyze(repoUrl.trim());
-      router.push(`/dashboard?id=${repo.id}`);
-    } catch (err: any) {
-      setError(err.message || "Failed to analyze repository");
-    } finally {
+      setLoading(true);
+      const githubUrl = repoUrl.trim();
+      const ready = await ensureConfigured(() => analyzeRepository(githubUrl));
+      if (ready) {
+        await analyzeRepository(githubUrl);
+      } else {
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to check AI configuration");
       setLoading(false);
     }
   };
@@ -94,6 +118,7 @@ export default function LandingPage() {
 
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-surface-400 hover:text-surface-100 transition-colors text-sm">Features</a>
+            <AISettingsButton compact />
             <a
               href="https://github.com/shiv-am0/CodeLens"
               target="_blank"
@@ -104,12 +129,15 @@ export default function LandingPage() {
             </a>
           </nav>
 
-          <button
-            onClick={() => setMobileMenu(!mobileMenu)}
-            className="md:hidden text-surface-400"
-          >
-            {mobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="flex items-center gap-4 md:hidden">
+            <AISettingsButton compact />
+            <button
+              onClick={() => setMobileMenu(!mobileMenu)}
+              className="text-surface-400"
+            >
+              {mobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </header>
 

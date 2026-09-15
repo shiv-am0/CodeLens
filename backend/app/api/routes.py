@@ -11,6 +11,7 @@ from app.services.repository_service import RepositoryService
 from app.services.analysis_service import AnalysisService
 from app.services.embedding_service import EmbeddingService
 from app.services.openai_service import OpenAIService
+from app.services.ai_configuration import AIConfigurationService
 from loguru import logger
 
 from sqlalchemy import select
@@ -31,6 +32,8 @@ async def analyze_repository(
         owner, repo_name = repo_service._parse_github_url(data.github_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await AIConfigurationService(db).require_ready()
 
     existing = await repo_service.find_by_owner_repo(owner, repo_name)
     if existing:
@@ -89,6 +92,40 @@ async def analyze_repository(
         branch=repo.branch,
         language=repo.language,
         status=repo.status,
+        created_at=repo.created_at,
+    )
+
+
+@router.post("/repositories/{repo_id}/reanalyze", response_model=RepositoryResponse)
+async def reanalyze_repository(
+    repo_id: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    repo_service = RepositoryService(db)
+    repo = await repo_service.get_repository(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    await AIConfigurationService(db).require_ready()
+    if repo.status in {"pending", "cloning", "indexing", "embedding", "analyzing"}:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ANALYSIS_ALREADY_RUNNING",
+                "message": "Repository analysis is already running.",
+            },
+        )
+
+    await repo_service.reset_for_reanalysis(repo_id)
+    background_tasks.add_task(_run_analysis_pipeline, repo_id, db)
+    return RepositoryResponse(
+        id=repo.id,
+        github_url=repo.github_url,
+        owner=repo.owner,
+        repo_name=repo.repo_name,
+        branch=repo.branch,
+        language=repo.language,
+        status="pending",
         created_at=repo.created_at,
     )
 
@@ -254,6 +291,7 @@ async def chat(
     repo = await repo_service.get_repository(repo_id)
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+    await AIConfigurationService(db).require_ready()
 
     embedding_service = EmbeddingService(db, openai_service)
     context = await embedding_service.get_context_for_chat(repo_id, data.question)

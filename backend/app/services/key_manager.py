@@ -1,44 +1,71 @@
-import time
 import itertools
-from cryptography.fernet import Fernet
-from sqlalchemy import select
+import time
+
 from openai import AsyncOpenAI
+from loguru import logger
+from sqlalchemy import select
+
+from app.core.config import settings
 from app.core.database import async_session_factory
+from app.services.master_key_store import master_key_store
 
 
 class KeyManager:
     def __init__(self):
-        self._keys = []
+        self._keys: list[str] = []
         self._cycle = itertools.cycle([])
-        self._last_refresh = 0
+        self._last_refresh = 0.0
         self._refresh_interval = 300
-        self._fernet = None
+        self._fallback_key = settings.openai_api_key
 
-    def init_encryption(self, key: str, fallback_key: str = ""):
-        key_bytes = key.encode() if isinstance(key, str) else key
-        self._fernet = Fernet(key_bytes)
-        if fallback_key:
-            self._keys = [fallback_key]
-            self._cycle = itertools.cycle([fallback_key])
+    def initialize(self) -> None:
+        master_key_store.load_existing()
+        self._fallback_key = settings.openai_api_key
+        self.invalidate()
+
+    def init_encryption(self, key: str, fallback_key: str = "") -> None:
+        """Backward-compatible entry point for the existing admin interface."""
+        if key:
+            master_key_store.initialize(key)
+        self._fallback_key = fallback_key
+        self.invalidate()
 
     def encrypt(self, plaintext: str) -> str:
-        return self._fernet.encrypt(plaintext.encode()).decode()
+        if not master_key_store.is_initialized:
+            master_key_store.initialize()
+        return master_key_store.encrypt(plaintext)
 
     def decrypt(self, ciphertext: str) -> str:
-        return self._fernet.decrypt(ciphertext.encode()).decode()
+        return master_key_store.decrypt(ciphertext)
 
-    async def _refresh(self):
+    def invalidate(self) -> None:
+        self._last_refresh = 0.0
+        self._keys = []
+        self._cycle = itertools.cycle([])
+
+    async def _refresh(self) -> None:
         from app.models.api_key import ApiKey
 
         async with async_session_factory() as db:
             result = await db.execute(
-                select(ApiKey).where(ApiKey.is_active == True).order_by(ApiKey.created_at)
+                select(ApiKey)
+                .where(ApiKey.is_active.is_(True))
+                .order_by(ApiKey.created_at)
             )
             rows = result.scalars().all()
-            decrypted = [self.decrypt(r.key_encrypted) for r in rows]
-            self._keys = decrypted
-            self._cycle = itertools.cycle(decrypted)
-            self._last_refresh = time.monotonic()
+
+        decrypted = []
+        for row in rows:
+            try:
+                decrypted.append(self.decrypt(row.key_encrypted))
+            except Exception:
+                logger.warning("Skipping an active API key that could not be decrypted")
+        if not decrypted and self._fallback_key:
+            decrypted = [self._fallback_key]
+
+        self._keys = decrypted
+        self._cycle = itertools.cycle(decrypted)
+        self._last_refresh = time.monotonic()
 
     async def get_next_key(self) -> str | None:
         now = time.monotonic()
@@ -58,14 +85,10 @@ class KeyManager:
         from app.models.api_key import ApiKey
 
         if db_session:
-            result = await db_session.execute(
-                select(ApiKey).order_by(ApiKey.created_at)
-            )
+            result = await db_session.execute(select(ApiKey).order_by(ApiKey.created_at))
             return result.scalars().all()
         async with async_session_factory() as db:
-            result = await db.execute(
-                select(ApiKey).order_by(ApiKey.created_at)
-            )
+            result = await db.execute(select(ApiKey).order_by(ApiKey.created_at))
             return result.scalars().all()
 
 

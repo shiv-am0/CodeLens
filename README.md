@@ -43,10 +43,14 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
    cp .env.example .env
    ```
 
-3. Add your OpenAI API key to `.env`:
+3. Set a local admin password in `.env`:
    ```
-   OPENAI_API_KEY=sk-your-openai-api-key
+   ADMIN_PASSWORD=choose-a-local-admin-password
    ```
+
+   `OPENAI_API_KEY` and `ENCRYPTION_KEY` may be left empty. After startup,
+   use **AI Settings** in the frontend to select a model and store the API key.
+   CodeLens generates and persists a Fernet encryption key automatically.
 
 4. Start with Docker Compose:
    ```bash
@@ -54,6 +58,13 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
    ```
 
 5. Open http://localhost:80 in your browser.
+
+6. Select **AI Settings**, enter the admin password and OpenAI API key, choose
+   a chat model, and select **Validate and save**. The OpenAI key is encrypted
+   before it is stored in PostgreSQL and is never returned to the browser.
+
+   Advanced users may provide a custom Fernet key during initial setup. It
+   cannot be replaced later without re-encrypting stored secrets.
 
 ### With Ollama (local, free)
 
@@ -162,6 +173,7 @@ npm run dev
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/repositories/analyze` | Submit repository for analysis |
+| POST | `/api/repositories/{id}/reanalyze` | Regenerate an existing analysis |
 | GET | `/api/repositories/{id}` | Get repository status |
 | GET | `/api/repositories/{id}/analysis` | Get full analysis data |
 | GET | `/api/repositories/{id}/overview` | Get project overview |
@@ -175,6 +187,8 @@ npm run dev
 | GET | `/api/repositories/{id}/files` | List repository files |
 | POST | `/api/repositories/{id}/chat` | Ask a question about the codebase |
 | GET | `/api/repositories/{id}/chat-history` | Get chat history |
+| GET | `/api/settings/ai` | Get non-secret AI configuration status |
+| PUT | `/api/settings/ai` | Validate and save OpenAI configuration |
 
 ## Project Structure
 
@@ -209,7 +223,7 @@ codelens/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | For OpenAI | — | OpenAI API key |
+| `OPENAI_API_KEY` | No | — | Optional environment fallback; normally configured in AI Settings |
 | `LLM_PROVIDER` | No | `openai` | `openai` or `ollama` |
 | `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | OpenAI chat model |
 | `OPENAI_EMBEDDING_MODEL` | No | `text-embedding-3-small` | OpenAI embedding model |
@@ -217,6 +231,13 @@ codelens/
 | `OLLAMA_EMBEDDING_MODEL` | No | `nomic-embed-text` | Ollama embedding model |
 | `DATABASE_URL` | No | PostgreSQL connection string |
 | `GITHUB_TOKEN` | No | — | GitHub token (avoids rate limits) |
+| `ADMIN_PASSWORD` | Yes for UI configuration | `admin` | Protects changes to AI settings |
+| `ENCRYPTION_KEY` | No | Auto-generated | Optional initial Fernet key |
+| `MASTER_KEY_PATH` | No | `./data/master.key` | Persistent master-key location outside Docker |
+
+When using Docker Compose, the generated master key is stored in the
+`backend_secrets` volume. Back up this volume together with PostgreSQL. Losing
+the master key makes API keys stored in the database impossible to decrypt.
 
 ## Testing
 

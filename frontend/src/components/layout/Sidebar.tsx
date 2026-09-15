@@ -15,6 +15,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AISettingsButton from "@/components/settings/AISettingsButton";
 
 interface SidebarProps {
   repoId: string;
@@ -70,6 +71,9 @@ export default function Sidebar({ repoId }: SidebarProps) {
           </Link>
         ))}
       </nav>
+      <div className="border-t border-surface-800/50 p-4">
+        <AISettingsButton className="w-full rounded-lg px-2 py-2 text-sm hover:bg-surface-800/50" />
+      </div>
     </aside>
   );
 }
