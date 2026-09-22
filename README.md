@@ -48,9 +48,8 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
    ADMIN_PASSWORD=choose-a-local-admin-password
    ```
 
-   `OPENAI_API_KEY` and `ENCRYPTION_KEY` may be left empty. After startup,
-   use **AI Settings** in the frontend to select a model and store the API key.
-   CodeLens generates and persists a Fernet encryption key automatically.
+   `OPENAI_API_KEY` and `ENCRYPTION_KEY` may be left empty for local development.
+   CodeLens generates a Fernet encryption key and persists it in a Docker volume.
 
 4. Start with Docker Compose:
    ```bash
@@ -59,12 +58,10 @@ CodeLens is a production-ready AI-powered developer tool that analyzes public Gi
 
 5. Open http://localhost:80 in your browser.
 
-6. Select **AI Settings**, enter the admin password and OpenAI API key, choose
-   a chat model, and select **Validate and save**. The OpenAI key is encrypted
-   before it is stored in PostgreSQL and is never returned to the browser.
-
-   Advanced users may provide a custom Fernet key during initial setup. It
-   cannot be replaced later without re-encrypting stored secrets.
+6. Open http://localhost/admin/login, enter the admin password, then configure
+   the shared OpenAI API key and chat model. The key is encrypted before it is
+   stored in PostgreSQL and is never returned to the browser. Public users do
+   not have access to this configuration form.
 
 ### With Ollama (local, free)
 
@@ -187,8 +184,9 @@ npm run dev
 | GET | `/api/repositories/{id}/files` | List repository files |
 | POST | `/api/repositories/{id}/chat` | Ask a question about the codebase |
 | GET | `/api/repositories/{id}/chat-history` | Get chat history |
-| GET | `/api/settings/ai` | Get non-secret AI configuration status |
-| PUT | `/api/settings/ai` | Validate and save OpenAI configuration |
+| GET | `/api/settings/ai` | Get non-secret AI service status |
+| GET/POST | `/admin/login` | Owner-only admin login |
+| GET/POST | `/admin/settings` | Owner-only OpenAI configuration |
 
 ## Project Structure
 
@@ -223,7 +221,7 @@ codelens/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | No | — | Optional environment fallback; normally configured in AI Settings |
+| `OPENAI_API_KEY` | No | — | Optional server-side fallback; never expose it to the frontend |
 | `LLM_PROVIDER` | No | `openai` | `openai` or `ollama` |
 | `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | OpenAI chat model |
 | `OPENAI_EMBEDDING_MODEL` | No | `text-embedding-3-small` | OpenAI embedding model |
@@ -231,13 +229,23 @@ codelens/
 | `OLLAMA_EMBEDDING_MODEL` | No | `nomic-embed-text` | Ollama embedding model |
 | `DATABASE_URL` | No | PostgreSQL connection string |
 | `GITHUB_TOKEN` | No | — | GitHub token (avoids rate limits) |
-| `ADMIN_PASSWORD` | Yes for UI configuration | `admin` | Protects changes to AI settings |
-| `ENCRYPTION_KEY` | No | Auto-generated | Optional initial Fernet key |
+| `APP_ENVIRONMENT` | Production only | `development` | Set to `production` on Render |
+| `ADMIN_PASSWORD` | Local only | — | Plain local-development password |
+| `ADMIN_PASSWORD_HASH` | Production | — | Bcrypt hash for the owner password |
+| `ADMIN_SESSION_SECRET` | Production | — | Stable 32+ character session-signing secret |
+| `ENCRYPTION_KEY` | Production | Auto-generated locally | Stable Fernet key used to encrypt stored API keys |
 | `MASTER_KEY_PATH` | No | `./data/master.key` | Persistent master-key location outside Docker |
+| `MAX_CONCURRENT_ANALYSES` | No | `2` | Per-backend-instance analysis concurrency cap |
+| `ANALYSIS_REQUESTS_PER_HOUR` | No | `5` | Per-IP analysis limit |
+| `CHAT_REQUESTS_PER_MINUTE` | No | `30` | Per-IP chat limit |
+| `AI_MAX_OUTPUT_TOKENS` | No | `4096` | Maximum model output per generation call |
+| `AI_FEATURES_ENABLED` | No | `true` | Owner-controlled emergency kill switch |
 
 When using Docker Compose, the generated master key is stored in the
 `backend_secrets` volume. Back up this volume together with PostgreSQL. Losing
 the master key makes API keys stored in the database impossible to decrypt.
+Production starts in fail-closed mode when required admin or encryption secrets
+are missing, or when the stored API key cannot be decrypted.
 
 ## Testing
 
@@ -254,3 +262,6 @@ pytest tests/ -v
 - Maximum files indexed: 3000
 - Private repositories are rejected
 - Binary files are automatically ignored
+- OpenAI configuration writes require a signed owner session
+- Admin forms use CSRF protection and login attempts are rate limited
+- Public analysis and chat requests have configurable per-IP limits

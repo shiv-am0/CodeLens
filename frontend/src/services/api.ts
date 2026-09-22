@@ -95,12 +95,4 @@ export const api = {
     getChatHistory: (id: number) =>
       request<import("@/types").ChatMessage[]>(`/repositories/${id}/chat-history`),
   },
-  aiSettings: {
-    get: () => request<import("@/types").AIConfigurationStatus>("/settings/ai"),
-    update: (configuration: import("@/types").AIConfigurationUpdate) =>
-      request<import("@/types").AIConfigurationStatus>("/settings/ai", {
-        method: "PUT",
-        body: JSON.stringify(configuration),
-      }),
-  },
 };

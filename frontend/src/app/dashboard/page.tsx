@@ -8,7 +8,6 @@ import ChatInterface from "@/components/chat/ChatInterface";
 import { api } from "@/services/api";
 import { getStatusColor } from "@/lib/utils";
 import { GitBranch, Globe, Loader2, RefreshCw } from "lucide-react";
-import { useAIConfiguration } from "@/components/settings/AIConfigurationProvider";
 import { ApiError } from "@/services/api";
 
 function DashboardContent() {
@@ -21,7 +20,6 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [error, setError] = useState("");
-  const { ensureConfigured, openSettings } = useAIConfiguration();
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryCountRef = useRef(0);
@@ -89,7 +87,7 @@ function DashboardContent() {
         caughtError instanceof ApiError &&
         caughtError.code === "AI_CONFIGURATION_REQUIRED"
       ) {
-        openSettings(runReanalysis);
+        setError("AI service is temporarily unavailable. Please contact the site owner.");
       } else {
         setError(
           caughtError instanceof Error
@@ -103,16 +101,7 @@ function DashboardContent() {
   };
 
   const handleReanalysis = async () => {
-    try {
-      const ready = await ensureConfigured(runReanalysis);
-      if (ready) await runReanalysis();
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to check AI configuration"
-      );
-    }
+    await runReanalysis();
   };
 
   const renderContent = () => {

@@ -16,8 +16,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import AISettingsButton from "@/components/settings/AISettingsButton";
-import { useAIConfiguration } from "@/components/settings/AIConfigurationProvider";
 import { ApiError, api } from "@/services/api";
 
 const features = [
@@ -59,7 +57,6 @@ export default function LandingPage() {
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
   const router = useRouter();
-  const { ensureConfigured, openSettings } = useAIConfiguration();
 
   const analyzeRepository = async (githubUrl: string) => {
     setLoading(true);
@@ -69,8 +66,8 @@ export default function LandingPage() {
       router.push(`/dashboard?id=${repo.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.code === "AI_CONFIGURATION_REQUIRED") {
+        setError("AI service is temporarily unavailable. Please contact the site owner.");
         setLoading(false);
-        openSettings(() => analyzeRepository(githubUrl));
         return;
       }
       setError(err instanceof Error ? err.message : "Failed to analyze repository");
@@ -90,19 +87,7 @@ export default function LandingPage() {
     }
     setError("");
 
-    try {
-      setLoading(true);
-      const githubUrl = repoUrl.trim();
-      const ready = await ensureConfigured(() => analyzeRepository(githubUrl));
-      if (ready) {
-        await analyzeRepository(githubUrl);
-      } else {
-        setLoading(false);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to check AI configuration");
-      setLoading(false);
-    }
+    await analyzeRepository(repoUrl.trim());
   };
 
   return (
@@ -118,7 +103,6 @@ export default function LandingPage() {
 
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-surface-400 hover:text-surface-100 transition-colors text-sm">Features</a>
-            <AISettingsButton compact />
             <a
               href="https://github.com/shiv-am0/CodeLens"
               target="_blank"
@@ -130,7 +114,6 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-4 md:hidden">
-            <AISettingsButton compact />
             <button
               onClick={() => setMobileMenu(!mobileMenu)}
               className="text-surface-400"

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AIConfigurationProvider } from "@/components/settings/AIConfigurationProvider";
 
 export const metadata: Metadata = {
   title: "CodeLens - Understand Any Codebase in Minutes",
@@ -15,9 +14,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen">
-        <AIConfigurationProvider>{children}</AIConfigurationProvider>
-      </body>
+      <body className="min-h-screen">{children}</body>
     </html>
   );
 }

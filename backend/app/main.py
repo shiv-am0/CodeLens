@@ -4,22 +4,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.core.config import settings
+from app.core.config import settings, validate_security_settings
 from app.core.database import init_db
 from app.api.routes import router
 from app.api.admin_routes import router as admin_router
 from app.api.settings_routes import router as settings_router
-from app.services.ai_configuration import AIConfigurationRequiredError
+from app.services.ai_configuration import (
+    AIConfigurationRequiredError,
+    validate_stored_api_key,
+)
 from app.services.key_manager import key_manager
+from app.services.master_key_store import master_key_store
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name}")
+    validate_security_settings()
     await init_db()
     key_manager.initialize()
-    if settings.encryption_key:
-        logger.info("Key manager initialized")
+    await validate_stored_api_key()
+    if master_key_store.is_initialized:
+        logger.info(
+            "Encryption key loaded (fingerprint: {})",
+            master_key_store.fingerprint,
+        )
     yield
     logger.info("Shutting down")
 

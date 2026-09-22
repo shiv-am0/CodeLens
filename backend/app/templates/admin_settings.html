@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeLens Admin - AI Settings</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #f1f3f9; padding: 40px 20px; }
+        .container { max-width: 720px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        h1 { font-size: 24px; }
+        h2 { font-size: 17px; margin-bottom: 16px; }
+        .card { background: #1a1d2e; border: 1px solid #2a2f45; border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+        .status { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #2a2f45; font-size: 14px; }
+        .status:last-child { border-bottom: 0; }
+        .label { color: #9ca8c8; }
+        .ok { color: #10b981; }
+        .missing { color: #f59e0b; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; font-size: 14px; color: #cbd3e8; margin-bottom: 7px; }
+        input, select { width: 100%; padding: 11px 14px; background: #0f1117; border: 1px solid #2a2f45; border-radius: 10px; color: #f1f3f9; font-size: 14px; outline: none; }
+        input:focus, select:focus { border-color: #6366f1; }
+        .help { color: #7783a5; font-size: 12px; margin-top: 7px; line-height: 1.5; }
+        button { border: 0; cursor: pointer; border-radius: 9px; font-size: 14px; font-weight: 600; }
+        .primary { padding: 11px 18px; background: #6366f1; color: white; }
+        .primary:hover { background: #4f46e5; }
+        .logout { padding: 7px 12px; background: transparent; color: #9ca8c8; border: 1px solid #2a2f45; }
+        .notice { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 14px; }
+        .error { color: #fca5a5; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.25); }
+        .success { color: #6ee7b7; background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.25); }
+        code { color: #c4b5fd; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <div class="header">
+            <h1>CodeLens AI Administration</h1>
+            <form method="post" action="/admin/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="logout">Log out</button>
+            </form>
+        </div>
+
+        {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+        {% if message %}<div class="notice success">{{ message }}</div>{% endif %}
+
+        <section class="card">
+            <h2>Current status</h2>
+            <div class="status"><span class="label">Provider</span><span>{{ status.provider }}</span></div>
+            <div class="status"><span class="label">Ready for public users</span><span class="{{ 'ok' if status.configured else 'missing' }}">{{ 'Yes' if status.configured else 'No' }}</span></div>
+            <div class="status"><span class="label">API key</span><span>{{ active_key.key_prefix + '…' if active_key else ('Environment fallback' if status.api_key_configured else 'Not configured') }}</span></div>
+            <div class="status"><span class="label">Chat model</span><span>{{ status.chat_model }}</span></div>
+            <div class="status"><span class="label">Embedding model</span><span>{{ status.embedding_model }}</span></div>
+            <div class="status"><span class="label">Encryption key fingerprint</span><code>{{ key_fingerprint or 'Not initialized' }}</code></div>
+        </section>
+
+        <section class="card">
+            <h2>Configure shared OpenAI access</h2>
+            <form method="post" action="/admin/settings">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="api_key">OpenAI API key</label>
+                    <input id="api_key" type="password" name="api_key" placeholder="{{ 'Leave blank to keep the current key' if status.api_key_configured else 'sk-…' }}" autocomplete="new-password">
+                    <p class="help">The key is validated, encrypted on the backend, and never returned to the browser.</p>
+                </div>
+                <div class="form-group">
+                    <label for="chat_model">Chat model</label>
+                    <select id="chat_model" name="chat_model">
+                        {% if status.chat_model not in supported_models %}
+                        <option value="{{ status.chat_model }}" selected>{{ status.chat_model }}</option>
+                        {% endif %}
+                        {% for model in supported_models %}
+                        <option value="{{ model }}" {{ 'selected' if model == status.chat_model else '' }}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="help">Embeddings stay on {{ status.embedding_model }} so existing vectors remain compatible.</p>
+                </div>
+                <button type="submit" class="primary">Validate and save</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

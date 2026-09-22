@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import asyncio
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db, async_session_factory
@@ -12,20 +14,25 @@ from app.services.analysis_service import AnalysisService
 from app.services.embedding_service import EmbeddingService
 from app.services.openai_service import OpenAIService
 from app.services.ai_configuration import AIConfigurationService
+from app.core.config import settings
+from app.core.rate_limit import limit_analysis_requests, limit_chat_requests
 from loguru import logger
 
 from sqlalchemy import select
 
 router = APIRouter()
 openai_service = OpenAIService()
+analysis_semaphore = asyncio.Semaphore(settings.max_concurrent_analyses)
 
 
 @router.post("/repositories/analyze", response_model=RepositoryResponse)
 async def analyze_repository(
     data: RepositoryCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    limit_analysis_requests(request)
     repo_service = RepositoryService(db)
 
     try:
@@ -50,7 +57,7 @@ async def analyze_repository(
             )
         elif existing.status == "failed" or existing.status == "pending":
             await repo_service.reset_for_reanalysis(existing.id)
-            background_tasks.add_task(_run_analysis_pipeline, existing.id, db)
+            background_tasks.add_task(_run_analysis_pipeline, existing.id)
             return RepositoryResponse(
                 id=existing.id,
                 github_url=existing.github_url,
@@ -82,7 +89,7 @@ async def analyze_repository(
 
     background_tasks.add_task(
         _run_analysis_pipeline,
-        repo.id, db,
+        repo.id,
     )
     return RepositoryResponse(
         id=repo.id,
@@ -100,8 +107,10 @@ async def analyze_repository(
 async def reanalyze_repository(
     repo_id: int,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    limit_analysis_requests(request)
     repo_service = RepositoryService(db)
     repo = await repo_service.get_repository(repo_id)
     if not repo:
@@ -117,7 +126,7 @@ async def reanalyze_repository(
         )
 
     await repo_service.reset_for_reanalysis(repo_id)
-    background_tasks.add_task(_run_analysis_pipeline, repo_id, db)
+    background_tasks.add_task(_run_analysis_pipeline, repo_id)
     return RepositoryResponse(
         id=repo.id,
         github_url=repo.github_url,
@@ -130,35 +139,45 @@ async def reanalyze_repository(
     )
 
 
-async def _run_analysis_pipeline(repo_id: int, db: AsyncSession):
-    async with async_session_factory() as session:
-        try:
+async def _run_analysis_pipeline(repo_id: int):
+    async with analysis_semaphore:
+        async with async_session_factory() as session:
             repo_service = RepositoryService(session)
-            repo = await repo_service.get_repository(repo_id)
-            if not repo:
-                return
-
-            await repo_service.update_status(repo_id, "cloning")
-            clone_dir = await repo_service.clone_repository(repo)
-
-            await repo_service.update_status(repo_id, "indexing")
-            await repo_service.index_files(repo, clone_dir)
-
-            await repo_service.update_status(repo_id, "embedding")
-            embedding_service = EmbeddingService(session, openai_service)
-            await embedding_service.generate_and_store_embeddings(repo_id)
-
-            await repo_service.update_status(repo_id, "analyzing")
-            analysis_service = AnalysisService(session, openai_service, embedding_service)
-            await analysis_service.analyze_repository(repo_id)
-
-            await repo_service.update_status(repo_id, "completed")
-        except Exception as e:
-            logger.error(f"Analysis pipeline failed: {e}")
             try:
-                await repo_service.update_status(repo_id, "failed")
-            except Exception:
-                pass
+                async with asyncio.timeout(settings.analysis_timeout_seconds):
+                    await _execute_analysis_pipeline(repo_id, session, repo_service)
+            except Exception as e:
+                logger.error(f"Analysis pipeline failed: {e}")
+                try:
+                    await repo_service.update_status(repo_id, "failed")
+                except Exception:
+                    pass
+
+
+async def _execute_analysis_pipeline(
+    repo_id: int,
+    session: AsyncSession,
+    repo_service: RepositoryService,
+):
+    repo = await repo_service.get_repository(repo_id)
+    if not repo:
+        return
+
+    await repo_service.update_status(repo_id, "cloning")
+    clone_dir = await repo_service.clone_repository(repo)
+
+    await repo_service.update_status(repo_id, "indexing")
+    await repo_service.index_files(repo, clone_dir)
+
+    await repo_service.update_status(repo_id, "embedding")
+    embedding_service = EmbeddingService(session, openai_service)
+    await embedding_service.generate_and_store_embeddings(repo_id)
+
+    await repo_service.update_status(repo_id, "analyzing")
+    analysis_service = AnalysisService(session, openai_service, embedding_service)
+    await analysis_service.analyze_repository(repo_id)
+
+    await repo_service.update_status(repo_id, "completed")
 
 
 @router.get("/repositories/{repo_id}", response_model=RepositoryResponse)
@@ -285,8 +304,10 @@ async def get_files(repo_id: int, db: AsyncSession = Depends(get_db)):
 async def chat(
     repo_id: int,
     data: ChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    limit_chat_requests(request)
     repo_service = RepositoryService(db)
     repo = await repo_service.get_repository(repo_id)
     if not repo:

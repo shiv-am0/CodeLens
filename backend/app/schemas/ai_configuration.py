@@ -4,10 +4,8 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class AIConfigurationUpdate(BaseModel):
-    admin_password: SecretStr
     api_key: Optional[SecretStr] = None
     chat_model: str = Field(min_length=1, max_length=255)
-    encryption_key: Optional[SecretStr] = None
 
     @field_validator("chat_model")
     @classmethod

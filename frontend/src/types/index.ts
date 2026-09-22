@@ -32,20 +32,3 @@ export interface ChatMessage {
   answer: string;
   timestamp: string;
 }
-
-export interface AIConfigurationStatus {
-  provider: string;
-  configured: boolean;
-  api_key_configured: boolean;
-  chat_model: string;
-  embedding_model: string;
-  encryption_initialized: boolean;
-  supported_chat_models: string[];
-}
-
-export interface AIConfigurationUpdate {
-  admin_password: string;
-  api_key?: string;
-  chat_model: string;
-  encryption_key?: string;
-}

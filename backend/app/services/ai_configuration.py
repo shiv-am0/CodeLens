@@ -1,4 +1,3 @@
-import secrets
 import time
 from dataclasses import dataclass
 
@@ -20,22 +19,18 @@ SUPPORTED_CHAT_MODELS = ["gpt-4o-mini", "gpt-4o"]
 
 class AIConfigurationRequiredError(RuntimeError):
     def __init__(self, missing: list[str] | None = None):
-        super().__init__("Configure OpenAI before using AI features")
+        super().__init__("AI service is temporarily unavailable")
         self.missing = missing or ["api_key"]
 
     def as_detail(self) -> dict:
         return {
             "code": "AI_CONFIGURATION_REQUIRED",
-            "message": "Configure OpenAI before using AI features.",
+            "message": "AI service is temporarily unavailable. Please contact the site owner.",
             "missing": self.missing,
         }
 
 
 class AIConfigurationValidationError(ValueError):
-    pass
-
-
-class AdminAuthenticationError(PermissionError):
     pass
 
 
@@ -80,6 +75,33 @@ class RuntimeAIConfigurationCache:
 runtime_ai_configuration = RuntimeAIConfigurationCache()
 
 
+async def validate_stored_api_key() -> None:
+    """Fail startup when a persisted key cannot be decrypted by this deployment."""
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(ApiKey)
+            .where(ApiKey.is_active.is_(True))
+            .order_by(ApiKey.created_at.desc())
+            .limit(1)
+        )
+        active_key = result.scalar_one_or_none()
+
+    if active_key is None:
+        return
+    if not master_key_store.load_existing():
+        raise RuntimeError(
+            "An encrypted OpenAI key exists, but no ENCRYPTION_KEY or persisted master key is available"
+        )
+    try:
+        key_manager.decrypt(active_key.key_encrypted)
+    except Exception as exc:
+        fingerprint = master_key_store.fingerprint or "unknown"
+        raise RuntimeError(
+            "The active OpenAI key cannot be decrypted. Restore the original "
+            f"ENCRYPTION_KEY (loaded fingerprint: {fingerprint})."
+        ) from exc
+
+
 class AIConfigurationService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -105,11 +127,12 @@ class AIConfigurationService:
             else settings.openai_embedding_model
         )
         provider = configuration.provider if configuration else settings.llm_provider
-        configured = (
+        provider_configured = (
             bool(chat_model and embedding_model)
             if provider == "ollama"
             else provider == "openai" and api_key_configured and bool(chat_model)
         )
+        configured = settings.ai_features_enabled and provider_configured
 
         return AIConfigurationResponse(
             provider=provider,
@@ -134,32 +157,13 @@ class AIConfigurationService:
         raise AIConfigurationRequiredError(missing)
 
     async def save(self, update_data: AIConfigurationUpdate) -> AIConfigurationResponse:
-        supplied_admin_password = update_data.admin_password.get_secret_value()
-        if not secrets.compare_digest(supplied_admin_password, settings.admin_password):
-            raise AdminAuthenticationError("Invalid admin password")
-
         api_key = update_data.api_key.get_secret_value().strip() if update_data.api_key else None
-        custom_encryption_key = (
-            update_data.encryption_key.get_secret_value().strip()
-            if update_data.encryption_key
-            else None
-        )
         active_key = await self._get_active_key()
 
         if not api_key and not active_key and not settings.openai_api_key:
             raise AIConfigurationValidationError(
                 "An OpenAI API key is required for initial setup"
             )
-
-        if custom_encryption_key and master_key_store.load_existing():
-            raise AIConfigurationValidationError(
-                "Encryption is already initialized and cannot be replaced without key rotation"
-            )
-        if custom_encryption_key:
-            try:
-                master_key_store.validate_key(custom_encryption_key)
-            except MasterKeyError as exc:
-                raise AIConfigurationValidationError(str(exc)) from exc
 
         validation_key = api_key
         if not validation_key and active_key:
@@ -178,9 +182,9 @@ class AIConfigurationService:
             settings.openai_embedding_model,
         )
 
-        if api_key or custom_encryption_key:
+        if api_key:
             try:
-                master_key_store.initialize(custom_encryption_key)
+                master_key_store.initialize()
             except MasterKeyError as exc:
                 raise AIConfigurationValidationError(str(exc)) from exc
 
@@ -193,7 +197,7 @@ class AIConfigurationService:
             )
             self.db.add(
                 ApiKey(
-                    name="Frontend configuration",
+                    name="Admin configuration",
                     key_encrypted=encrypted_key,
                     key_prefix=api_key[:8],
                     is_active=True,

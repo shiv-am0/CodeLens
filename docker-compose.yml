@@ -37,6 +37,7 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://postgres:postgres@postgres:5432/codelens"
       DATABASE_URL_SYNC: "postgresql://postgres:postgres@postgres:5432/codelens"
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o}
@@ -44,10 +45,17 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       MASTER_KEY_PATH: "/var/lib/codelens/master.key"
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      MAX_CONCURRENT_ANALYSES: ${MAX_CONCURRENT_ANALYSES:-2}
+      ANALYSIS_REQUESTS_PER_HOUR: ${ANALYSIS_REQUESTS_PER_HOUR:-5}
+      CHAT_REQUESTS_PER_MINUTE: ${CHAT_REQUESTS_PER_MINUTE:-30}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-4096}
+      AI_FEATURES_ENABLED: ${AI_FEATURES_ENABLED:-true}
     ports:
       - "8000:8000"
     volumes:

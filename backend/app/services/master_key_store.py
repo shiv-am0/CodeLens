@@ -1,4 +1,5 @@
 import os
+import hashlib
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -22,6 +23,13 @@ class MasterKeyStore:
     @property
     def is_initialized(self) -> bool:
         return self._fernet is not None
+
+    @property
+    def fingerprint(self) -> str | None:
+        """Return a non-secret identifier useful for deployment diagnostics."""
+        if not self.load_existing() or self._key is None:
+            return None
+        return hashlib.sha256(self._key).hexdigest()[:12]
 
     def load_existing(self) -> bool:
         if self._fernet is not None:
