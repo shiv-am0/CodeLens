@@ -4,6 +4,76 @@
 
 CodeLens is a production-ready AI-powered developer tool that analyzes public GitHub repositories and generates comprehensive documentation, architecture diagrams, API summaries, and intelligent Q&A using Retrieval Augmented Generation (RAG).
 
+## Local repository browser
+
+The standalone Python CLI captures a local directory or a public GitHub revision and lets you browse the saved source offline. Install from the checkout in a virtual environment (tested on Linux with Python 3.13):
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+codelens doctor
+codelens open . --json
+# Or capture a remote branch, tag or full commit SHA:
+codelens open https://github.com/octocat/Hello-World --ref master
+```
+
+Copy the returned session ID into the following commands:
+
+```bash
+codelens sessions list
+codelens sessions resume SESSION --offline
+codelens files SESSION --limit 20 --offset 0
+codelens search SESSION "repository"
+codelens source SESSION README.md --start 1 --end 20 --offline
+codelens refresh SESSION
+```
+
+Each open starts an independent session. Refresh returns the same session for an identical snapshot or a new linked session for a changed snapshot. Stored paths, search hits and inclusive line numbers continue to work after the original directory disappears. Use `--json` for structured results and exact source text, including CRLF. Use `--offline` or `CODELENS_OFFLINE=1` to deny remote capture. Stored reads always use local SQLite. Set `CODELENS_HOME` before the first command to place data/config/cache under a chosen directory. Doctor displays the active locations and search engine.
+
+Local capture reads dirty tracked and eligible untracked files. Git worktrees respect repository ignore rules. Plain directories use built-in exclusions. Hidden entries (including .env and .github), dependency/build folders, nested repositories, symlinks, common key files and database files are skipped. GitHub capture indexes the published source archive at the resolved commit. Binary, non-UTF-8 and files over 512 KiB have coverage records; their bodies are unavailable. Capture limits are 3,000 candidate files, 100,000 visited entries and 100 MiB of input (both compressed and expanded limits on archives). A capture records the bytes observed while walking the source. For a precise committed remote revision, supply a SHA. Filename exclusions cannot identify every secret embedded in source text.
+
+Search uses SQLite FTS5/BM25, or a bounded substring scan if the store was created without FTS5. Source reads use the saved bytes in either case. The deployment instructions further below apply to the hosted demo.
+
+## Standalone analysis and chat
+
+Install the current checkout with `python -m pip install .` in your virtual environment. Run `codelens setup` in a terminal to select a provider and enter a model ID. For scripts, use one of these commands with your chosen model:
+
+```bash
+codelens setup --provider openai --model "$OPENAI_MODEL"
+# Or use a model already installed in your running Ollama instance:
+codelens setup --provider ollama --model "$OLLAMA_MODEL"
+```
+
+| Provider | Requirements | Streaming and usage |
+|---|---|---|
+| OpenAI | Set OPENAI_API_KEY in the process environment. Choose an accessible Chat Completions model that supports streaming and max_completion_tokens. | Uses HTTPS and server-sent events. Saves the usage object when returned. |
+| Ollama | Start the runtime and install the selected model yourself. Default endpoint is http://127.0.0.1:11434. Use --endpoint for another loopback port. | Reads /api/chat NDJSON, requests num_predict and saves returned prompt/evaluation counts. |
+
+Configuration is user-scoped. The settings file contains the provider, model, endpoint and budgets. Only OpenAI generation reads the credential. Cloud generation sends selected source passages and recent conversation context to the provider, which may retain data under its own policies. Local persistence keeps the saved copy on your machine. Strict offline mode blocks inference for both providers.
+
+```bash
+sid=$(codelens open . --json | python -c 'import json,sys; print(json.load(sys.stdin)["session_id"])')
+codelens analyze "$sid" --section overview
+codelens show "$sid" overview --offline
+codelens ask "$sid" "Where does a repository snapshot get saved?"
+codelens history "$sid" --offline
+```
+
+Use `analyze --section` with **overview, architecture, folders, api, database, diagram, readme, suggestions**. `codelens analyze "$sid" --all` explicitly requests all eight in order. Each completed section commits before the next starts. A retry checks snapshot, passages, prompt, provider/model and options, then reuses completed matches. An explicit `--regenerate` makes another version on the same evidence. Refresh captures changed source in a new session. `sessions resume` lists linked version IDs and statuses. Use `show SESSION SECTION --version ID` to read a particular attempt.
+
+Answers stream as they arrive. Ctrl+C saves the partial response with a cancelled status. If the process exits unexpectedly, reopening its session marks the last checkpoint interrupted. Repeating a section restarts that section. A chat retry with an explicit `--request-id` replays the same completed answer for that session and question. Start a new attempt after a failed question. One generation at a time can run in each session; saved reads remain available during streaming.
+
+Each request uses bounded source samples, with exact file/line references appended to valid evidence labels. The input limit applies to the UTF-8 serialization of the selected messages. Configure `--input-bytes` and `--output-tokens` to fit your chosen model. A terminal provider event and validated citation identifiers (or an explicit insufficient-evidence result) are required for completion. Factual accuracy and Mermaid syntax still require review.
+
+```bash
+codelens export "$sid" --format markdown --offline --output analysis.md
+codelens export "$sid" --format json --offline --output session.json
+codelens export "$sid" --format mermaid --offline --output diagram.mmd
+```
+
+Markdown and JSON exports include saved versions, chat and the source excerpts used. Mermaid export writes the selected completed diagram as raw source. Omit `--output` to write to stdout. The first use of an existing schema-v1 database creates a verified `codelens.v1.bak` alongside it before migrating to schema v2.
+
 ## Features
 
 - **AI-Powered Analysis** — AI analyzes your entire codebase and generates comprehensive documentation

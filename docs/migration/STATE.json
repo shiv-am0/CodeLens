@@ -1,0 +1,98 @@
+{
+  "baseline_commit": "f525097",
+  "branch": "migration/local-python-phase-1",
+  "initial_worktree": "clean",
+  "completed_phases": [
+    0,
+    1,
+    2
+  ],
+  "current_authorized_phase": null,
+  "next_phase": 3,
+  "authorization_required": "Implement Phase 3",
+  "blockers": [],
+  "checks": [
+    {
+      "command": "git status --short --branch; git rev-parse --short HEAD",
+      "result": "main tracking origin/main, f525097"
+    },
+    {
+      "command": "cd backend && PYTHONDONTWRITEBYTECODE=1 timeout 60 .venv/bin/python -m pytest -q -p no:cacheprovider",
+      "result": "17 passed, 14 deprecation warnings, Python 3.13.15 outside sandbox. Restricted run stalled; collect-only discovered 17 tests."
+    },
+    {
+      "command": "d=$(mktemp -d) && git archive HEAD frontend | tar -x -C \"$d\" && cp -a frontend/node_modules \"$d/frontend/\" && cd \"$d/frontend\" && NEXT_TELEMETRY_DISABLED=1 npm run build",
+      "result": "Next.js 15.5.25 production build passed including type checks and five static pages, Node v26.12.0. Used existing dependencies; initial hard-link copy across filesystems failed, regular copy succeeded."
+    },
+    {
+      "command": "python -c \"import sqlite3 as s; c=s.connect(':memory:'); c.execute('create virtual table ft using fts5(body)'); print(s.sqlite_version)\"",
+      "result": "FTS5 available, SQLite 3.54.0, shell Python 3.14.8"
+    },
+    {
+      "command": "python -m json.tool docs/migration/STATE.json; git diff --check; git status --porcelain -uall",
+      "result": "Valid JSON, documentation-only worktree delta"
+    },
+    {
+      "phase": 1,
+      "command": "python -m pip install --no-index --no-build-isolation . && python -m pip check",
+      "result": "Installed into a dedicated Python 3.13.18 venv after provisioning dependencies. No broken requirements. codelens --help and imports worked outside the checkout. Provider SDKs, NumPy, FastAPI, SQLAlchemy and psycopg absent."
+    },
+    {
+      "phase": 1,
+      "command": "python -m pytest -q tests/local",
+      "result": "4 passed. Fresh CLI subprocesses with network guard and no credentials, concurrent first open, unchanged refresh, tracked/untracked edits, old source deletion, line fidelity, session isolation, coverage, bounded locks, atomic rollback, SQLite integrity and FKs, future-schema rejection, FTS fallback, remote transport fixtures and limits."
+    },
+    {
+      "phase": 1,
+      "command": "codelens open https://github.com/octocat/Hello-World [--ref master | --ref 7fd1a60b01f91b314f59955a4e4d4e80d8edf11d] --json",
+      "result": "Live anonymous default HEAD, branch and SHA succeeded with network permission. Default HEAD and explicit SHA shared a snapshot in the same home. Restricted network attempt failed cleanly with exit 4."
+    },
+    {
+      "phase": 1,
+      "command": "cd backend && PYTHONDONTWRITEBYTECODE=1 timeout 60 .venv/bin/python -m pytest -q -p no:cacheprovider",
+      "result": "17 passed, 14 baseline deprecation warnings."
+    },
+    {
+      "phase": 1,
+      "command": "NEXT_TELEMETRY_DISABLED=1 npm run build",
+      "result": "Passed using an isolated git archive of frontend and a copy of existing node_modules, same procedure as Phase 0."
+    },
+    {
+      "phase": 2,
+      "command": "python -m pip install --no-index --no-build-isolation . && python -m pip check",
+      "result": "Installed codelens-local 0.2.0 in the isolated Linux Python 3.13.18 venv. No broken requirements. CLI setup help and package import worked outside the checkout. No OpenAI/Ollama SDK, NumPy or psycopg installed."
+    },
+    {
+      "phase": 2,
+      "command": "python -m pytest -q tests/local tests/generation --tb=short",
+      "result": "8 passed (4 Phase 1 and 4 generation tests). Installed CLI subprocesses, deterministic SSE/NDJSON streams, eight sections, targeted source, multiple chat turns, cache reuse, independent sessions, explicit replay, regeneration, provider switch, source refresh/deletion, byte-identical saved outputs with provider imports/network denied. Tested HTTP error, truncation, invalid citations, SIGINT, abrupt process death, session lock, budgets and v1 upgrade/backup."
+    },
+    {
+      "phase": 2,
+      "command": "timeout 25 python tests/generation/loopback_smoke.py",
+      "result": "Passed with loopback socket permission. Real HTTP POST to a deterministic Ollama-format server; first delta visible before completion, simultaneous offline history read saw running, final turn complete. No model loaded."
+    },
+    {
+      "phase": 2,
+      "command": "cd backend && PYTHONDONTWRITEBYTECODE=1 timeout 60 .venv/bin/python -m pytest -q -p no:cacheprovider",
+      "result": "17 passed with the 14 baseline deprecation warnings."
+    },
+    {
+      "phase": 2,
+      "command": "NEXT_TELEMETRY_DISABLED=1 npm run build",
+      "result": "Passed using a temporary git archive of the hosted frontend with existing node_modules. Five static pages generated."
+    },
+    {
+      "phase": 2,
+      "command": "codelens analyze SESSION --section overview",
+      "result": "User-reported manual live OpenAI smoke: completed, cached false. No new paid calls during PR preparation."
+    }
+  ],
+  "verification_limits": [
+    "Local package and generation lock verified on Linux with Python 3.13.18. Other operating systems and Python versions remain unverified.",
+    "Both adapters verified with deterministic protocol fixtures. Manual live OpenAI coverage is limited to one overview. Live model-backed Ollama inference remains unverified.",
+    "Citation checks establish source-reference validity. Generated factual accuracy and model-specific context limits require separate evaluation.",
+    "Hosted app verified through its backend tests and frontend build. Live deployment and PostgreSQL/pgvector were not exercised. MCP and TUI remain subsequent phases."
+  ],
+  "resume": "Read PLAN.md, DECISIONS.md and this file; reconcile the checkout and conversation. This record does not authorize execution."
+}
