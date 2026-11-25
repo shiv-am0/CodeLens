@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=84.2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codelens-local"
+version = "0.2.0"
+description = "Local repository snapshots, evidence-based analysis and saved conversations"
+requires-python = ">=3.12"
+dependencies = ["typer>=0.29.2,<0.30", "platformdirs>=4.14.8,<5"]
+
+[project.scripts]
+codelens = "codelens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/local", "tests/generation"]
